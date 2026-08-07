@@ -1,6 +1,6 @@
 # System Architecture & Technical Specifications — Sasti-Sehat
 
-This document outlines the system architecture, component breakdown, data flow, and database schema for **Sasti-Sehat**, an AI-powered healthcare price transparency platform.
+This document outlines the system architecture, component breakdown, data flow, and database schema for **Sasti-Sehat**, an AI-powered healthcare price transparency platform using Node.js, Express, and MongoDB.
 
 ---
 
@@ -12,8 +12,8 @@ graph TD
     ReactFE -->|API Requests / JWT| NodeBE[Node.js / Express Backend]
     
     subgraph Core Backend & Data Layer
-        NodeBE -->|SQL Queries / ORM| PostgresDB[(PostgreSQL Database)]
-        NodeBE -->|File Uploads / Images| ObjectStore[Cloud Storage / S3 / Local Storage]
+        NodeBE -->|Mongoose Queries / ODM| MongoDB[(MongoDB Database)]
+        NodeBE -->|File Uploads / Images| LocalStore[Local Upload Storage / S3]
     end
 
     subgraph AI Engine & R&D Pipelines
@@ -35,7 +35,7 @@ graph TD
 | :--- | :--- | :--- | :--- |
 | **Frontend** | React.js (Vite / CRA), Tailwind CSS / Vanilla CSS | Client-side web interface, interactive UI, state management | **NIKHIL Mengade** |
 | **UI/UX Design & Backend** | Figma, Node.js, Express.js | UI Wireframes, design system, RESTful API server & auth | **SHREYASH LAGHANE** |
-| **Database** | PostgreSQL, Prisma ORM / pg-pool | Relational data store for hospitals, treatments, users, and bill logs | **SHREYASH LAGHANE** |
+| **Database** | MongoDB, Mongoose ODM | Document store for hospitals, treatments, users, and bill logs | **SHREYASH LAGHANE** |
 | **AI Engine** | Python / Node AI SDK, Tesseract OCR / Vision Models | Medical bill scanning, pricing anomaly detection, LLM analysis | **HARSH KATE** |
 | **R & D** | Data Scraping, Healthcare Price Benchmarking | Data collection, pricing algorithm validation, market research | **OM VITEKAR** |
 
@@ -71,7 +71,7 @@ graph TD
 
 ---
 
-### 3.3 Database Schema (PostgreSQL)
+### 3.3 Database Schema (MongoDB Collections & Mongoose Schemas)
 
 ```mermaid
 erDiagram
@@ -81,83 +81,61 @@ erDiagram
     BILL_ANALYSES ||--o{ BILL_ITEMS : contains
 
     USERS {
-        uuid id PK
-        string full_name
+        ObjectId _id PK
+        string fullName
         string email
-        string password_hash
+        string password
         string city
-        timestamp created_at
+        string phone
+        string role
+        date createdAt
     }
 
     HOSPITALS {
-        uuid id PK
+        ObjectId _id PK
         string name
         string city
         string address
-        string rating
-        boolean is_verified
+        number rating
+        boolean isVerified
+        string contactPhone
+        object location
+        date createdAt
     }
 
     TREATMENTS {
-        uuid id PK
+        ObjectId _id PK
         string code
         string title
         string category
-        decimal avg_cost_national
+        string description
+        number avgCostNational
+        date createdAt
     }
 
     HOSPITAL_TREATMENTS {
-        uuid id PK
-        uuid hospital_id FK
-        uuid treatment_id FK
-        decimal cost_min
-        decimal cost_max
-        decimal cost_avg
+        ObjectId _id PK
+        ObjectId hospital FK
+        ObjectId treatment FK
+        number costMin
+        number costMax
+        number costAvg
+        string notes
     }
 
     BILL_ANALYSES {
-        uuid id PK
-        uuid user_id FK
-        string original_filename
-        string file_url
-        decimal total_claimed_amount
-        decimal ai_estimated_fair_amount
+        ObjectId _id PK
+        ObjectId user FK
+        string originalFilename
+        string fileUrl
+        number totalClaimedAmount
+        number aiEstimatedFairAmount
+        number potentialSavings
         string status
-        timestamp uploaded_at
-    }
-
-    BILL_ITEMS {
-        uuid id PK
-        uuid bill_analysis_id FK
-        string item_description
-        decimal charged_amount
-        decimal benchmark_amount
-        boolean is_overpriced
+        array itemBreakdown
+        date uploadedAt
     }
 ```
-
----
-
-### 3.4 AI Engine Architecture
-*Lead: HARSH KATE*
-
-1. **Document Processing & OCR**:
-   - Converts uploaded bill images/PDFs into structured raw text.
-   - Extracts billing line items, hospital names, dates, and itemized costs.
-2. **Medical Price Anomaly Detection**:
-   - Compares parsed line-item costs against PostgreSQL reference benchmarks.
-   - Identifies duplicate charges, inflated consumable costs, or unbundled billing codes.
-3. **AI Recommendation & Explainer**:
-   - Generates natural language summaries explaining potential overcharges and suggested negotiation points for patients.
-
----
-
-### 3.5 Research & Development (R&D) Pipeline
-*Lead: OM VITEKAR*
-
-- **Data Sourcing & Normalization**: Gathering government health scheme rates, crowd-sourced bill data, and published hospital tariffs.
-- **Price Range Algorithms**: Developing statistical models (percentiles, regional cost variance factors) to ensure accurate "fair price" estimates.
-- **Compliance & Privacy**: Ensuring patient bill uploads sanitize personal health information (PHI) before AI processing.
 
 ---
 
@@ -167,17 +145,22 @@ erDiagram
 | :--- | :--- | :--- |
 | `POST` | `/api/v1/auth/register` | Register a new user |
 | `POST` | `/api/v1/auth/login` | User login & JWT issuance |
+| `GET` | `/api/v1/auth/me` | Fetch authenticated user profile |
 | `GET` | `/api/v1/treatments` | Search procedures & pricing benchmarks |
-| `GET` | `/api/v1/hospitals` | List hospitals with filters (city, rating, procedure) |
+| `GET` | `/api/v1/treatments/:id` | Get treatment details & national benchmark |
+| `GET` | `/api/v1/hospitals` | List hospitals with filters (city, rating, query) |
+| `GET` | `/api/v1/hospitals/:id` | Get single hospital details |
 | `GET` | `/api/v1/hospitals/:id/costs` | Get itemized treatment costs for a hospital |
 | `POST` | `/api/v1/bills/upload` | Upload medical bill (image/PDF) for AI analysis |
+| `GET` | `/api/v1/bills` | Get user's analyzed bills |
 | `GET` | `/api/v1/bills/:id` | Retrieve AI analysis report for a bill |
+| `POST` | `/api/v1/ai/estimate-cost` | Estimate out-of-pocket procedure cost with insurance |
 
 ---
 
 ## 5. Security & Performance Considerations
 
 1. **JWT & RBAC**: Secure authentication for patients and platform admins.
-2. **Data Encryption**: Sensitive user data encrypted in PostgreSQL at rest and via TLS in transit.
+2. **MongoDB Indexing**: Geospatial and compound text indexes on Hospital (`city`, `name`) and Treatment (`title`, `category`, `code`) collections.
 3. **Rate Limiting**: Express rate limiting on API endpoints to prevent abuse.
-4. **CORS & Helm**: Security headers enabled via `helmet` and strict CORS policies.
+4. **CORS & Helmet**: Security headers enabled via `helmet` and strict CORS policies.
