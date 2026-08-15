@@ -17,7 +17,7 @@
 
 | Role | Team Member |
 | :--- | :--- |
-| **Frontend Development** | **NIKHIL Mengade** |
+| **Frontend Development** | **NIKHIL MENGADE** |
 | **UI/UX Design & Backend Development** | **SHREYASH LAGHANE** |
 | **Research & Development** | **OM VITEKAR** |
 | **AI & ML Integration** | **HARSH KATE** |
